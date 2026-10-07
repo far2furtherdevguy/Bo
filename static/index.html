@@ -1,712 +1,303 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Symbolic AI - Learning System</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        header {
-            text-align: center;
-            color: white;
-            margin-bottom: 30px;
-        }
-        
-        header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-        
-        header p {
-            opacity: 0.9;
-            font-size: 1.1em;
-        }
-        
-        .main-grid {
-            display: grid;
-            grid-template-columns: 1fr 350px;
-            gap: 20px;
-        }
-        
-        .panel {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        }
-        
-        .panel h2 {
-            color: #667eea;
-            margin-bottom: 15px;
-            font-size: 1.3em;
-        }
-        
-        /* Chat Area */
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            height: 600px;
-        }
-        
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .message {
-            margin-bottom: 15px;
-            padding: 12px 15px;
-            border-radius: 15px;
-            max-width: 80%;
-            animation: fadeIn 0.3s;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .message.user {
-            background: #667eea;
-            color: white;
-            margin-left: auto;
-            border-bottom-right-radius: 5px;
-        }
-        
-        .message.ai {
-            background: white;
-            border: 2px solid #e9ecef;
-            margin-right: auto;
-            border-bottom-left-radius: 5px;
-        }
-        
-        .message .meta {
-            font-size: 0.75em;
-            opacity: 0.7;
-            margin-top: 5px;
-        }
-        
-        .chat-input {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .chat-input input {
-            flex: 1;
-            padding: 15px;
-            border: 2px solid #e9ecef;
-            border-radius: 25px;
-            font-size: 1em;
-            outline: none;
-            transition: border-color 0.3s;
-        }
-        
-        .chat-input input:focus {
-            border-color: #667eea;
-        }
-        
-        button {
-            padding: 12px 25px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 1em;
-            transition: all 0.3s;
-        }
-        
-        button:hover {
-            background: #5a6fd6;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-        
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        
-        /* Sidebar */
-        .sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-        
-        .tabs {
-            display: flex;
-            gap: 5px;
-            margin-bottom: 15px;
-        }
-        
-        .tab {
-            padding: 10px 15px;
-            background: #e9ecef;
-            border: none;
-            border-radius: 10px 10px 0 0;
-            cursor: pointer;
-            font-size: 0.9em;
-        }
-        
-        .tab.active {
-            background: #667eea;
-            color: white;
-        }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-        
-        textarea, input[type="text"] {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e9ecef;
-            border-radius: 10px;
-            font-size: 0.95em;
-            margin-bottom: 10px;
-            outline: none;
-        }
-        
-        textarea:focus, input[type="text"]:focus {
-            border-color: #667eea;
-        }
-        
-        textarea {
-            min-height: 100px;
-            resize: vertical;
-        }
-        
-        .file-upload {
-            border: 3px dashed #667eea;
-            border-radius: 10px;
-            padding: 30px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            margin-bottom: 15px;
-        }
-        
-        .file-upload:hover {
-            background: #f0f4ff;
-        }
-        
-        .file-upload.dragover {
-            background: #e3e9ff;
-            border-color: #5a6fd6;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-        
-        .stat-card {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-        }
-        
-        .stat-value {
-            font-size: 1.8em;
-            font-weight: bold;
-            color: #667eea;
-        }
-        
-        .stat-label {
-            font-size: 0.85em;
-            color: #666;
-            margin-top: 5px;
-        }
-        
-        .rules-list {
-            max-height: 200px;
-            overflow-y: auto;
-            font-size: 0.85em;
-        }
-        
-        .rule-item {
-            padding: 8px;
-            background: #f8f9fa;
-            margin-bottom: 5px;
-            border-radius: 5px;
-            border-left: 3px solid #667eea;
-        }
-        
-        .connection-status {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-size: 0.9em;
-            font-weight: bold;
-        }
-        
-        .connection-status.connected {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .connection-status.disconnected {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
-        .quick-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .quick-btn {
-            padding: 8px 15px;
-            font-size: 0.85em;
-            background: #e9ecef;
-            color: #333;
-        }
-        
-        .quick-btn:hover {
-            background: #dee2e6;
-        }
-        
-        @media (max-width: 968px) {
-            .main-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .chat-container {
-                height: 400px;
-            }
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#1d1822; --bg2:#251e2b; --card:#2e2638; --line:#463b52;
+  --text:#f3e9dc; --mute:#b5a6bd; --amber:#f4b860; --amber-d:#c98a2e;
+  --rose:#e58f9c; --sage:#93b8a0; --ink:#2a1d10;
+  --serif:'Fraunces',Georgia,serif; --sans:'Nunito',system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{
+  font:400 16px/1.5 var(--sans); color:var(--text); background:var(--bg);
+  background-image:radial-gradient(ellipse 80% 45% at 50% -10%,rgba(244,184,96,.16),transparent 70%);
+  background-attachment:fixed;
+  display:flex; flex-direction:column; max-width:720px; margin:0 auto;
+  padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom);
+}
+button,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+/* header */
+header{display:flex;align-items:center;gap:12px;padding:16px 4px 10px}
+.lamp{width:34px;height:34px;border-radius:50%;flex:none;
+  background:radial-gradient(circle at 38% 34%,#fff2c9,var(--amber) 45%,var(--amber-d));
+  box-shadow:0 0 18px 4px rgba(244,184,96,.45),0 0 48px 12px rgba(244,184,96,.18);
+  animation:breathe 4.5s ease-in-out infinite}
+@keyframes breathe{50%{box-shadow:0 0 26px 8px rgba(244,184,96,.6),0 0 70px 20px rgba(244,184,96,.24);transform:scale(1.06)}}
+h1{font:700 26px/1 var(--serif);letter-spacing:.2px}
+.sub{font-size:13px;color:var(--mute)}
+.status{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:13px;color:var(--mute)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--rose);transition:background .4s,box-shadow .4s}
+.status.on .dot{background:var(--sage);box-shadow:0 0 0 4px rgba(147,184,160,.2)}
+
+/* tabs */
+nav{position:relative;display:flex;background:var(--bg2);border-radius:999px;padding:4px;margin:4px 0 12px}
+nav button{flex:1;position:relative;z-index:1;background:none;border:0;padding:9px 0;border-radius:999px;
+  color:var(--mute);font-weight:700;cursor:pointer;transition:color .25s}
+nav button[aria-selected=true]{color:var(--ink)}
+#pill{position:absolute;top:4px;bottom:4px;left:0;border-radius:999px;background:var(--amber);
+  transition:transform .35s cubic-bezier(.3,1.3,.5,1),width .35s}
+
+section{display:none;flex:1;min-height:0;flex-direction:column}
+section.on{display:flex;animation:fade .3s ease}
+@keyframes fade{from{opacity:0}}
+
+/* chat */
+#log{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px 12px;scroll-behavior:smooth}
+.msg{max-width:84%;padding:10px 14px;border-radius:18px 18px 18px 6px;background:var(--card);
+  border:1px solid var(--line);animation:pop .35s cubic-bezier(.3,1.4,.5,1) both;transform-origin:bottom left;overflow-wrap:anywhere;white-space:pre-wrap}
+.msg.me{align-self:flex-end;background:var(--amber);color:var(--ink);border-color:transparent;
+  border-radius:18px 18px 6px 18px;transform-origin:bottom right;font-weight:600}
+.msg.err{border-color:var(--rose);color:var(--rose)}
+@keyframes pop{from{opacity:0;transform:scale(.85) translateY(8px)}}
+.meta{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;color:var(--mute)}
+.bar{height:4px;width:60px;border-radius:4px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--sage);width:0;transition:width .8s .15s cubic-bezier(.2,.8,.2,1)}
+.typing{display:flex;gap:5px;padding:14px 16px}
+.typing i{width:7px;height:7px;border-radius:50%;background:var(--amber);animation:bob 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes bob{0%,60%,100%{transform:none;opacity:.5}30%{transform:translateY(-6px);opacity:1}}
+.row{display:flex;gap:8px;padding:6px 0 10px}
+input[type=text],textarea{width:100%;background:var(--bg2);border:1.5px solid var(--line);border-radius:14px;
+  padding:11px 14px;transition:border-color .2s,box-shadow .2s;resize:vertical}
+input[type=text]:focus,textarea:focus{outline:0;border-color:var(--amber);box-shadow:0 0 0 4px rgba(244,184,96,.14)}
+::placeholder{color:#8a7b94}
+
+.btn{border:0;cursor:pointer;font-weight:700;padding:11px 18px;border-radius:14px;background:var(--amber);color:var(--ink);
+  transition:transform .15s,filter .2s,box-shadow .2s;box-shadow:0 3px 0 var(--amber-d)}
+.btn:hover{filter:brightness(1.08)}
+.btn:active{transform:translateY(3px);box-shadow:0 0 0 var(--amber-d)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:0 3px 0 var(--amber-d)}
+.btn.ghost{background:none;color:var(--text);box-shadow:none;border:1.5px solid var(--line)}
+.btn.ghost:active{transform:scale(.96)}
+
+/* cards */
+.scroll{overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.card h2{font:700 19px/1.2 var(--serif)}
+.card p{font-size:14px;color:var(--mute)}
+.out{background:var(--bg2);border-radius:12px;padding:10px 12px;font-size:14px;white-space:pre-wrap;min-height:0}
+.out:empty{display:none}
+.out.pulse{animation:glow .8s}
+@keyframes glow{from{box-shadow:0 0 0 0 rgba(244,184,96,.6)}to{box-shadow:0 0 0 14px transparent}}
+
+/* file drop */
+.drop{border:2px dashed var(--line);border-radius:16px;padding:20px 12px;text-align:center;cursor:pointer;
+  color:var(--mute);transition:border-color .25s,background .25s,transform .25s}
+.drop:hover,.drop.over{border-color:var(--amber);background:rgba(244,184,96,.07);transform:scale(1.01)}
+.drop b{color:var(--text)}
+.chip{display:none;align-items:center;gap:10px;background:var(--bg2);border-radius:14px;padding:10px 12px;animation:pop .35s both}
+.chip.on{display:flex}
+.chip .name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip small{display:block;color:var(--mute);font-weight:400}
+.chip .x{margin-left:auto;background:none;border:0;color:var(--mute);font-size:20px;cursor:pointer;padding:4px 8px}
+.state{display:none;align-items:center;gap:8px;font-weight:700;font-size:14px}
+.state.on{display:flex;animation:pop .3s both}
+.state.ok{color:var(--sage)}.state.bad{color:var(--rose)}
+.spin{width:16px;height:16px;border:2.5px solid var(--line);border-top-color:var(--amber);border-radius:50%;animation:rot .7s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.check{width:18px;height:18px}.check path{stroke-dasharray:24;stroke-dashoffset:24;animation:draw .5s .1s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.stat{background:var(--bg2);border-radius:14px;padding:10px 12px}
+.stat b{display:block;font:700 22px/1.1 var(--serif);color:var(--amber)}
+.stat span{font-size:12px;color:var(--mute)}
+.two{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translate(-50%,30px);opacity:0;
+  background:var(--text);color:var(--ink);font-weight:700;padding:10px 18px;border-radius:999px;pointer-events:none;
+  transition:transform .35s cubic-bezier(.3,1.4,.5,1),opacity .25s;z-index:9;max-width:90vw;text-align:center}
+#toast.show{transform:translate(-50%,0);opacity:1}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
 </head>
 <body>
-    <div class="connection-status disconnected" id="connStatus">
-        Disconnected
-    </div>
-    
-    <div class="container">
-        <header>
-            <h1>🧠 Symbolic AI</h1>
-            <p>Hyperdimensional Learning System with Cellular Automata & Production Rules</p>
-        </header>
-        
-        <div class="main-grid">
-            <!-- Main Chat Area -->
-            <div class="panel chat-container">
-                <h2>💬 Conversation</h2>
-                
-                <div class="quick-actions">
-                    <button class="quick-btn" onclick="quickChat('hello')">Say Hello</button>
-                    <button class="quick-btn" onclick="quickChat('how are you')">How are you?</button>
-                    <button class="quick-btn" onclick="quickChat('what can you do')">Capabilities</button>
-                    <button class="quick-btn" onclick="generateCreative()">🎨 Creative</button>
-                </div>
-                
-                <div class="chat-messages" id="chatMessages">
-                    <div class="message ai">
-                        Hello! I'm Symbolic AI. I learn from our conversations. Teach me things!
-                        <div class="meta">System initialized</div>
-                    </div>
-                </div>
-                
-                <div class="chat-input">
-                    <input type="text" id="chatInput" placeholder="Type a message..." 
-                           onkeypress="handleKeyPress(event)">
-                    <button onclick="sendMessage()">Send</button>
-                </div>
-            </div>
-            
-            <!-- Sidebar -->
-            <div class="sidebar">
-                <!-- Training Panel -->
-                <div class="panel">
-                    <div class="tabs">
-                        <button class="tab active" onclick="switchTab('teach')">Teach</button>
-                        <button class="tab" onclick="switchTab('file')">File</button>
-                        <button class="tab" onclick="switchTab('tools')">Tools</button>
-                    </div>
-                    
-                    <div id="teach" class="tab-content active">
-                        <h3>📝 Teach Q&A</h3>
-                        <input type="text" id="teachQ" placeholder="Question (e.g., What is Ruby?)">
-                        <textarea id="teachA" placeholder="Answer (e.g., A programming language...)"></textarea>
-                        <button onclick="teach()" style="width: 100%;">Teach Me</button>
-                    </div>
-                    
-                    <div id="file" class="tab-content">
-                        <h3>📁 Upload Training File</h3>
-                        <div class="file-upload" id="fileDrop" onclick="document.getElementById('fileInput').click()">
-                            <p>📄 Drop .rb, .txt, or .md files here</p>
-                            <p style="font-size: 0.85em; color: #666;">or click to browse</p>
-                            <input type="file" id="fileInput" style="display: none" 
-                                   accept=".rb,.txt,.md,.py,.js" onchange="handleFile(event)">
-                        </div>
-                        <div id="fileStatus"></div>
-                    </div>
-                    
-                    <div id="tools" class="tab-content">
-                        <h3>🛠️ Tools</h3>
-                        
-                        <h4>Analogy Solver</h4>
-                        <input type="text" id="anaA" placeholder="A (e.g., king)" style="width: 32%">
-                        <input type="text" id="anaB" placeholder="B (e.g., queen)" style="width: 32%">
-                        <input type="text" id="anaC" placeholder="C (e.g., man)" style="width: 32%">
-                        <button onclick="solveAnalogy()" style="width: 100%; margin-top: 5px;">Solve A:B :: C:?</button>
-                        <div id="analogyResult" style="margin-top: 10px; padding: 10px; background: #f0f4ff; border-radius: 5px; display: none;"></div>
-                        
-                        <h4 style="margin-top: 15px;">Reasoning</h4>
-                        <input type="text" id="factInput" placeholder="Enter a fact (e.g., socrates)">
-                        <button onclick="addFact()" style="width: 100%;">Add Fact & Infer</button>
-                        <div id="factsList" style="margin-top: 10px; font-size: 0.85em;"></div>
-                    </div>
-                </div>
-                
-                <!-- Stats Panel -->
-                <div class="panel">
-                    <h2>📊 Statistics</h2>
-                    <div class="stats-grid" id="statsGrid">
-                        <div class="stat-card">
-                            <div class="stat-value" id="statInteractions">0</div>
-                            <div class="stat-label">Interactions</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value" id="statHDV">0</div>
-                            <div class="stat-label">HDV Symbols</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value" id="statLCS">0</div>
-                            <div class="stat-label">LCS Rules</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value" id="statFacts">0</div>
-                            <div class="stat-label">Facts</div>
-                        </div>
-                    </div>
-                    <button onclick="refreshStats()" style="width: 100%; margin-top: 15px;">Refresh Stats</button>
-                </div>
-                
-                <!-- Rules Panel -->
-                <div class="panel">
-                    <h2>📚 Learned Rules</h2>
-                    <div class="rules-list" id="rulesList">
-                        <p style="color: #666; font-size: 0.9em;">No rules learned yet. Start teaching!</p>
-                    </div>
-                    <button onclick="loadRules()" style="width: 100%; margin-top: 10px;">Load Rules</button>
-                </div>
-            </div>
-        </div>
-    </div>
+<header>
+  <div class="lamp" aria-hidden="true"></div>
+  <div><h1>Bo</h1><div class="sub">a little mind you teach</div></div>
+  <div class="status" id="status"><span class="dot"></span><span id="stext">Connecting</span></div>
+</header>
 
-    <script>
-        let ws = null;
-        let reconnectInterval = null;
-        
-        // Initialize WebSocket
-        function connect() {
-            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${location.host}/ws`;
-            
-            ws = new WebSocket(wsUrl);
-            
-            ws.onopen = () => {
-                updateConnectionStatus(true);
-                console.log('Connected to AI server');
-            };
-            
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                handleResponse(data);
-            };
-            
-            ws.onclose = () => {
-                updateConnectionStatus(false);
-                console.log('Disconnected. Reconnecting in 3s...');
-                setTimeout(connect, 3000);
-            };
-            
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
-        }
-        
-        function updateConnectionStatus(connected) {
-            const status = document.getElementById('connStatus');
-            if (connected) {
-                status.className = 'connection-status connected';
-                status.textContent = 'Connected';
-            } else {
-                status.className = 'connection-status disconnected';
-                status.textContent = 'Disconnected';
-            }
-        }
-        
-        function handleResponse(data) {
-            switch(data.type) {
-                case 'chat':
-                    addMessage(data.response, 'ai', data);
-                    break;
-                case 'teach':
-                    showNotification('✅ ' + data.result.status);
-                    refreshStats();
-                    break;
-                case 'train_file':
-                    showNotification(`📚 Trained on ${data.result.lines_processed} lines`);
-                    refreshStats();
-                    break;
-                case 'generate':
-                    addMessage(data.result, 'ai', {source: 'creative'});
-                    break;
-                case 'analogy':
-                    const resultDiv = document.getElementById('analogyResult');
-                    resultDiv.style.display = 'block';
-                    resultDiv.innerHTML = `<strong>Answer:</strong> ${data.result || 'Unknown'}`;
-                    break;
-                case 'reason':
-                    document.getElementById('factsList').innerHTML = 
-                        data.result.all_facts.map(f => `<span style="background: #e9ecef; padding: 3px 8px; border-radius: 10px; margin: 2px; display: inline-block;">${f}</span>`).join('');
-                    break;
-                case 'stats':
-                    updateStats(data.result);
-                    break;
-                case 'rules':
-                    displayRules(data.result);
-                    break;
-            }
-        }
-        
-        function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const message = input.value.trim();
-            if (!message) return;
-            
-            addMessage(message, 'user');
-            input.value = '';
-            
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({type: 'chat', message}));
-            } else {
-                // Fallback to HTTP
-                fetch('/chat', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({message})
-                })
-                .then(r => r.json())
-                .then(data => addMessage(data.response, 'ai', data));
-            }
-        }
-        
-        function addMessage(text, sender, meta = {}) {
-            const container = document.getElementById('chatMessages');
-            const div = document.createElement('div');
-            div.className = `message ${sender}`;
-            
-            let metaHtml = '';
-            if (meta.confidence) {
-                metaHtml += `<div class="meta">Confidence: ${(meta.confidence * 100).toFixed(0)}% | Source: ${meta.source}</div>`;
-            } else if (meta.source) {
-                metaHtml += `<div class="meta">Source: ${meta.source}</div>`;
-            }
-            
-            div.innerHTML = `${escapeHtml(text)}${metaHtml}`;
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-        }
-        
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        function handleKeyPress(event) {
-            if (event.key === 'Enter') sendMessage();
-        }
-        
-        function quickChat(message) {
-            document.getElementById('chatInput').value = message;
-            sendMessage();
-        }
-        
-        function teach() {
-            const q = document.getElementById('teachQ').value;
-            const a = document.getElementById('teachA').value;
-            if (!q || !a) return;
-            
-            ws.send(JSON.stringify({type: 'teach', question: q, answer: a}));
-            
-            document.getElementById('teachQ').value = '';
-            document.getElementById('teachA').value = '';
-        }
-        
-        function handleFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const content = e.target.result;
-                document.getElementById('fileStatus').innerHTML = 
-                    `<p>📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)</p>`;
-                
-                ws.send(JSON.stringify({
-                    type: 'train_file',
-                    content: content,
-                    filename: file.name
-                }));
-            };
-            reader.readAsText(file);
-        }
-        
-        // Drag and drop
-        const dropZone = document.getElementById('fileDrop');
-        
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-        
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-        
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            
-            const file = e.dataTransfer.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    ws.send(JSON.stringify({
-                        type: 'train_file',
-                        content: event.target.result,
-                        filename: file.name
-                    }));
-                };
-                reader.readAsText(file);
-            }
-        });
-        
-        function generateCreative() {
-            const seed = document.getElementById('chatInput').value || 'dream';
-            ws.send(JSON.stringify({type: 'generate', seed, poem: false}));
-        }
-        
-        function solveAnalogy() {
-            const a = document.getElementById('anaA').value;
-            const b = document.getElementById('anaB').value;
-            const c = document.getElementById('anaC').value;
-            if (!a || !b || !c) return;
-            
-            ws.send(JSON.stringify({type: 'analogy', a, b, c}));
-        }
-        
-        function addFact() {
-            const fact = document.getElementById('factInput').value;
-            if (!fact) return;
-            
-            ws.send(JSON.stringify({type: 'reason', facts: [fact]}));
-            document.getElementById('factInput').value = '';
-        }
-        
-        function refreshStats() {
-            ws.send(JSON.stringify({type: 'stats'}));
-        }
-        
-        function updateStats(stats) {
-            document.getElementById('statInteractions').textContent = stats.interactions;
-            document.getElementById('statHDV').textContent = stats.hdv_symbols;
-            document.getElementById('statLCS').textContent = stats.lcs_rules;
-            document.getElementById('statFacts').textContent = stats.ps_facts;
-        }
-        
-        function loadRules() {
-            ws.send(JSON.stringify({type: 'rules'}));
-        }
-        
-        function displayRules(rules) {
-            const container = document.getElementById('rulesList');
-            if (rules.length === 0) {
-                container.innerHTML = '<p style="color: #666;">No rules learned yet.</p>';
-                return;
-            }
-            
-            container.innerHTML = rules.slice(0, 20).map(r => 
-                `<div class="rule-item">
-                    <strong>IF</strong> "${r.if}"<br>
-                    <strong>THEN</strong> "${r.then}"<br>
-                    <small>Fitness: ${r.f.toFixed(2)} | Uses: ${r.uses}</small>
-                </div>`
-            ).join('');
-        }
-        
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-            
-            document.getElementById(tabName).classList.add('active');
-            event.target.classList.add('active');
-        }
-        
-        function showNotification(msg) {
-            const div = document.createElement('div');
-            div.style.cssText = `
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                background: #28a745;
-                color: white;
-                padding: 15px 25px;
-                border-radius: 10px;
-                box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-                animation: slideIn 0.3s;
-                z-index: 1000;
-            `;
-            div.textContent = msg;
-            document.body.appendChild(div);
-            
-            setTimeout(() => div.remove(), 3000);
-        }
-        
-        // Initialize
-        connect();
-        refreshStats();
-        
-        // Auto-refresh stats every 10 seconds
-        setInterval(refreshStats, 10000);
-    </script>
+<nav role="tablist" aria-label="Sections">
+  <span id="pill"></span>
+  <button role="tab" data-tab="chat" aria-selected="true">Chat</button>
+  <button role="tab" data-tab="teach" aria-selected="false">Teach</button>
+  <button role="tab" data-tab="lab" aria-selected="false">Lab</button>
+</nav>
+
+<section id="chat" class="on">
+  <div id="log" aria-live="polite"></div>
+  <form class="row" id="chatForm">
+    <input type="text" id="chatIn" placeholder="Say something to Bo" autocomplete="off" aria-label="Message">
+    <button class="btn" type="submit">Send</button>
+  </form>
+</section>
+
+<section id="teach"><div class="scroll">
+  <form class="card" id="teachForm">
+    <h2>Teach one answer</h2>
+    <p>Bo remembers the answer for that question.</p>
+    <input type="text" id="tq" placeholder="Question, e.g. what is your favorite food" autocomplete="off" required>
+    <input type="text" id="ta" placeholder="Answer" autocomplete="off" required>
+    <button class="btn" type="submit" id="teachBtn">Teach Bo</button>
+    <div class="state" id="teachState"></div>
+  </form>
+
+  <div class="card">
+    <h2>Teach from a file</h2>
+    <p>Use a .txt file with one pair per line: <b>question =&gt; answer</b></p>
+    <label class="drop" id="drop" for="file" tabindex="0"><b>Choose a file</b><br>or drop it here</label>
+    <input type="file" id="file" accept=".txt,.md,.rb,.py,text/plain" hidden>
+    <div class="chip" id="chip">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#f4b860" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+      <div style="min-width:0"><div class="name" id="fname"></div><small id="fmeta"></small></div>
+      <button class="x" id="fclear" type="button" aria-label="Remove file">&times;</button>
+    </div>
+    <button class="btn" id="sendFile" type="button" disabled>Send file to Bo</button>
+    <div class="state" id="fileState"></div>
+  </div>
+</div></section>
+
+<section id="lab"><div class="scroll">
+  <div class="card">
+    <h2>What Bo knows</h2>
+    <div class="grid" id="stats"></div>
+    <button class="btn ghost" id="refresh" type="button">Refresh</button>
+  </div>
+  <form class="card" id="genForm">
+    <h2>Write something</h2>
+    <input type="text" id="seed" placeholder="A few seed words, e.g. rain window tea" autocomplete="off">
+    <label style="font-size:14px;color:var(--mute)"><input type="checkbox" id="poem" checked> Make a four line poem</label>
+    <button class="btn" type="submit">Write</button><div class="out" id="genOut"></div>
+  </form>
+  <form class="card" id="reasonForm">
+    <h2>Work out a fact</h2>
+    <p>Give facts separated by commas. Bo chains rules, like alive → human → mortal.</p>
+    <input type="text" id="facts" placeholder="alive" autocomplete="off" required>
+    <button class="btn" type="submit">Reason</button><div class="out" id="reasonOut"></div>
+  </form>
+  <form class="card" id="anaForm">
+    <h2>Finish an analogy</h2>
+    <p>A is to B as C is to ?  Bo only knows pairs that were added to it in code.</p>
+    <div class="two"><input type="text" id="aa" placeholder="A" required><input type="text" id="ab" placeholder="B" required><input type="text" id="ac" placeholder="C" required></div>
+    <button class="btn" type="submit">Solve</button><div class="out" id="anaOut"></div>
+  </form>
+</div></section>
+
+<div id="toast" role="status"></div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let ws, pending=[], tries=0, fileText='', fileName='';
+
+/* ---------- connection ---------- */
+function setStatus(on){ $('#status').classList.toggle('on',on); $('#stext').textContent=on?'Awake':'Reconnecting'; }
+function connect(){
+  ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
+  ws.onopen=()=>{tries=0;setStatus(true)};
+  ws.onmessage=e=>{ let d; try{d=JSON.parse(e.data)}catch{return}
+    const p=pending.shift(); if(!p) return;
+    d.type==='error'?p.rej(new Error(d.message||'Something went wrong')):p.res(d) };
+  ws.onclose=()=>{ setStatus(false); pending.splice(0).forEach(p=>p.rej(new Error('Connection lost')));
+    setTimeout(connect,Math.min(1000*2**tries++,8000)) };
+}
+function call(obj){ return new Promise((res,rej)=>{
+  if(!ws||ws.readyState!==1) return rej(new Error('offline'));
+  pending.push({res,rej}); ws.send(JSON.stringify(obj)); }); }
+async function post(path,body){
+  const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json().catch(()=>({})); if(!r.ok||d.error) throw new Error(d.error||('Server said '+r.status)); return d; }
+
+function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('show'),2400); }
+function setState(id,kind,text){ const el=$(id); el.className='state'+(kind?' on '+kind:'');
+  el.innerHTML=kind==='busy'?'<span class="spin"></span>':kind==='ok'?'<svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>':'';
+  el.append(document.createTextNode(text||'')); if(kind==='busy') el.classList.add('on'); }
+function show(out,text){ const el=$(out); el.textContent=text; el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); }
+
+/* ---------- tabs ---------- */
+function movePill(){ const b=$('nav button[aria-selected=true]'); const p=$('#pill');
+  p.style.width=b.offsetWidth+'px'; p.style.transform='translateX('+(b.offsetLeft-4)+'px)'; }
+$$('nav button').forEach(b=>b.onclick=()=>{
+  $$('nav button').forEach(x=>x.setAttribute('aria-selected',x===b));
+  $$('section').forEach(s=>s.classList.toggle('on',s.id===b.dataset.tab));
+  movePill(); if(b.dataset.tab==='lab') loadStats(); });
+addEventListener('resize',movePill);
+
+/* ---------- chat ---------- */
+const log=$('#log');
+function bubble(text,cls=''){ const d=document.createElement('div'); d.className='msg '+cls; d.textContent=text; log.append(d); log.scrollTop=log.scrollHeight; return d; }
+function addMeta(b,d){ const m=document.createElement('div'); m.className='meta';
+  const pct=Math.round(Math.max(0,Math.min(1,d.confidence||0))*100);
+  m.innerHTML='<span></span><span class="bar"><i></i></span><span>'+pct+'%</span>'; m.firstChild.textContent=d.source||''; b.append(m);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>m.querySelector('i').style.width=pct+'%')); }
+$('#chatForm').onsubmit=async e=>{ e.preventDefault();
+  const inp=$('#chatIn'), text=inp.value.trim(); if(!text) return; inp.value=''; bubble(text,'me');
+  const t=document.createElement('div'); t.className='msg typing'; t.innerHTML='<i></i><i></i><i></i>'; log.append(t); log.scrollTop=log.scrollHeight;
+  try{
+    let d; try{ d=await call({type:'chat',message:text}); }catch(err){ if(err.message!=='offline') throw err; d=await post('/chat',{message:text}); }
+    t.remove(); addMeta(bubble(d.response),d);
+  }catch(err){ t.remove(); bubble(err.message,'err'); } };
+bubble("Hi, I'm Bo. Ask me something, or open Teach to give me new answers.");
+
+/* ---------- teach one ---------- */
+$('#teachForm').onsubmit=async e=>{ e.preventDefault(); const b=$('#teachBtn'); b.disabled=true; setState('#teachState','busy','Teaching');
+  try{ const q=$('#tq').value.trim(), a=$('#ta').value.trim();
+    let r; try{ r=(await call({type:'teach',question:q,answer:a})).result; }catch(err){ if(err.message!=='offline') throw err; r=await post('/train',{question:q,answer:a}); }
+    if(!String(r.status).startsWith('Learned')) throw new Error(r.status||'Bo could not learn that');
+    setState('#teachState','ok','Learned. Bo now knows '+r.db_entries+' answers'); $('#tq').value=$('#ta').value=''; $('#tq').focus();
+  }catch(err){ setState('#teachState','bad',err.message); } b.disabled=false; };
+
+/* ---------- file upload ---------- */
+const drop=$('#drop'), fileIn=$('#file');
+function fmtSize(n){ return n<1024?n+' B':(n/1024).toFixed(1)+' KB'; }
+async function pick(f){
+  if(!f) return; if(f.size>4*1024*1024){ toast('That file is over 4 MB'); return; }
+  fileText=await f.text(); fileName=f.name;
+  const lines=fileText.split('\n').filter(l=>l.trim()&&!l.trim().startsWith('#')), pairs=lines.filter(l=>l.includes('=>')).length;
+  $('#fname').textContent=f.name; $('#fmeta').textContent=fmtSize(f.size)+' · '+lines.length+' lines · '+pairs+' question pairs';
+  $('#chip').classList.add('on'); drop.style.display='none'; $('#sendFile').disabled=false; setState('#fileState','');
+  toast('File ready. Tap Send file to Bo'); }
+function clearFile(){ fileText=fileName=''; fileIn.value=''; $('#chip').classList.remove('on'); drop.style.display=''; $('#sendFile').disabled=true; }
+fileIn.onchange=()=>pick(fileIn.files[0]);
+$('#fclear').onclick=()=>{clearFile();setState('#fileState','')};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',e=>pick(e.dataTransfer.files[0]));
+drop.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();fileIn.click()} });
+$('#sendFile').onclick=async()=>{ const b=$('#sendFile'); if(!fileText) return;
+  b.disabled=true; b.textContent='Sending'; setState('#fileState','busy','Sending '+fileName+'...');
+  try{ const r=await post('/train',{file:fileText,filename:fileName});
+    const n=r.qa_taught, extra=r.patterns_learned;
+    if(n===undefined) throw new Error('Sent, but the server is running old code. Redeploy ai_core.py');
+    setState('#fileState','ok','Sent. Bo learned '+n+' answers'+(extra?' and '+extra+' text patterns':'')); toast('Sent! '+n+' answers learned'); clearFile();
+  }catch(err){ setState('#fileState','bad',err.message); b.disabled=false; }
+  b.textContent='Send file to Bo'; };
+
+/* ---------- lab ---------- */
+async function loadStats(){ try{ let s; try{ s=(await call({type:'stats'})).result; }catch(e){ s=await (await fetch('/stats')).json(); }
+  const items=[['Chats',s.interactions],['Answers',s.db_entries],['Words',s.hdv_symbols],['Rules',s.lcs_rules],['Facts',s.ps_facts]];
+  $('#stats').innerHTML=items.map(([k,v])=>'<div class="stat"><b>'+v+'</b><span>'+k+'</span></div>').join('');
+ }catch(e){ toast('Could not load stats'); } }
+$('#refresh').onclick=loadStats;
+$('#genForm').onsubmit=async e=>{ e.preventDefault(); try{ const r=await call({type:'generate',seed:$('#seed').value,poem:$('#poem').checked}); show('#genOut',r.result); }catch(err){ toast(err.message); } };
+$('#reasonForm').onsubmit=async e=>{ e.preventDefault(); try{ const f=$('#facts').value.split(',').map(x=>x.trim()).filter(Boolean);
+  const r=await call({type:'reason',facts:f}); show('#reasonOut',(r.result.length?'New: '+r.result.join(', ')+'\n':'Nothing new followed.\n')+'All facts: '+r.all_facts.join(', ')); }catch(err){ toast(err.message); } };
+$('#anaForm').onsubmit=async e=>{ e.preventDefault(); try{ const r=await call({type:'analogy',a:$('#aa').value,b:$('#ab').value,c:$('#ac').value});
+  show('#anaOut',r.result?('Answer: '+r.result):'Bo does not know that pair yet.'); }catch(err){ toast(err.message); } };
+
+connect(); setTimeout(movePill,50); document.fonts&&document.fonts.ready.then(movePill);
+</script>
 </body>
 </html>
