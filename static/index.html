@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Symbolic AI - Learning System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        
+        .panel h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        /* Chat Area */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 600px;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 15px;
+            border-radius: 15px;
+            max-width: 80%;
+            animation: fadeIn 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.user {
+            background: #667eea;
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+        }
+        
+        .message.ai {
+            background: white;
+            border: 2px solid #e9ecef;
+            margin-right: auto;
+            border-bottom-left-radius: 5px;
+        }
+        
+        .message .meta {
+            font-size: 0.75em;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+        
+        .chat-input {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .chat-input input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            font-size: 1em;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .chat-input input:focus {
+            border-color: #667eea;
+        }
+        
+        button {
+            padding: 12px 25px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background: #5a6fd6;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .tab {
+            padding: 10px 15px;
+            background: #e9ecef;
+            border: none;
+            border-radius: 10px 10px 0 0;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        textarea, input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 0.95em;
+            margin-bottom: 10px;
+            outline: none;
+        }
+        
+        textarea:focus, input[type="text"]:focus {
+            border-color: #667eea;
+        }
+        
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .file-upload {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 15px;
+        }
+        
+        .file-upload:hover {
+            background: #f0f4ff;
+        }
+        
+        .file-upload.dragover {
+            background: #e3e9ff;
+            border-color: #5a6fd6;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .rules-list {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 0.85em;
+        }
+        
+        .rule-item {
+            padding: 8px;
+            background: #f8f9fa;
+            margin-bottom: 5px;
+            border-radius: 5px;
+            border-left: 3px solid #667eea;
+        }
+        
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        
+        .connection-status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .connection-status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .quick-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .quick-btn {
+            padding: 8px 15px;
+            font-size: 0.85em;
+            background: #e9ecef;
+            color: #333;
+        }
+        
+        .quick-btn:hover {
+            background: #dee2e6;
+        }
+        
+        @media (max-width: 968px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chat-container {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status disconnected" id="connStatus">
+        Disconnected
+    </div>
+    
+    <div class="container">
+        <header>
+            <h1>🧠 Symbolic AI</h1>
+            <p>Hyperdimensional Learning System with Cellular Automata & Production Rules</p>
+        </header>
+        
+        <div class="main-grid">
+            <!-- Main Chat Area -->
+            <div class="panel chat-container">
+                <h2>💬 Conversation</h2>
+                
+                <div class="quick-actions">
+                    <button class="quick-btn" onclick="quickChat('hello')">Say Hello</button>
+                    <button class="quick-btn" onclick="quickChat('how are you')">How are you?</button>
+                    <button class="quick-btn" onclick="quickChat('what can you do')">Capabilities</button>
+                    <button class="quick-btn" onclick="generateCreative()">🎨 Creative</button>
+                </div>
+                
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message ai">
+                        Hello! I'm Symbolic AI. I learn from our conversations. Teach me things!
+                        <div class="meta">System initialized</div>
+                    </div>
+                </div>
+                
+                <div class="chat-input">
+                    <input type="text" id="chatInput" placeholder="Type a message..." 
+                           onkeypress="handleKeyPress(event)">
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Training Panel -->
+                <div class="panel">
+                    <div class="tabs">
+                        <button class="tab active" onclick="switchTab('teach')">Teach</button>
+                        <button class="tab" onclick="switchTab('file')">File</button>
+                        <button class="tab" onclick="switchTab('tools')">Tools</button>
+                    </div>
+                    
+                    <div id="teach" class="tab-content active">
+                        <h3>📝 Teach Q&A</h3>
+                        <input type="text" id="teachQ" placeholder="Question (e.g., What is Ruby?)">
+                        <textarea id="teachA" placeholder="Answer (e.g., A programming language...)"></textarea>
+                        <button onclick="teach()" style="width: 100%;">Teach Me</button>
+                    </div>
+                    
+                    <div id="file" class="tab-content">
+                        <h3>📁 Upload Training File</h3>
+                        <div class="file-upload" id="fileDrop" onclick="document.getElementById('fileInput').click()">
+                            <p>📄 Drop .rb, .txt, or .md files here</p>
+                            <p style="font-size: 0.85em; color: #666;">or click to browse</p>
+                            <input type="file" id="fileInput" style="display: none" 
+                                   accept=".rb,.txt,.md,.py,.js" onchange="handleFile(event)">
+                        </div>
+                        <div id="fileStatus"></div>
+                    </div>
+                    
+                    <div id="tools" class="tab-content">
+                        <h3>🛠️ Tools</h3>
+                        
+                        <h4>Analogy Solver</h4>
+                        <input type="text" id="anaA" placeholder="A (e.g., king)" style="width: 32%">
+                        <input type="text" id="anaB" placeholder="B (e.g., queen)" style="width: 32%">
+                        <input type="text" id="anaC" placeholder="C (e.g., man)" style="width: 32%">
+                        <button onclick="solveAnalogy()" style="width: 100%; margin-top: 5px;">Solve A:B :: C:?</button>
+                        <div id="analogyResult" style="margin-top: 10px; padding: 10px; background: #f0f4ff; border-radius: 5px; display: none;"></div>
+                        
+                        <h4 style="margin-top: 15px;">Reasoning</h4>
+                        <input type="text" id="factInput" placeholder="Enter a fact (e.g., socrates)">
+                        <button onclick="addFact()" style="width: 100%;">Add Fact & Infer</button>
+                        <div id="factsList" style="margin-top: 10px; font-size: 0.85em;"></div>
+                    </div>
+                </div>
+                
+                <!-- Stats Panel -->
+                <div class="panel">
+                    <h2>📊 Statistics</h2>
+                    <div class="stats-grid" id="statsGrid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="statInteractions">0</div>
+                            <div class="stat-label">Interactions</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="statHDV">0</div>
+                            <div class="stat-label">HDV Symbols</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="statLCS">0</div>
+                            <div class="stat-label">LCS Rules</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="statFacts">0</div>
+                            <div class="stat-label">Facts</div>
+                        </div>
+                    </div>
+                    <button onclick="refreshStats()" style="width: 100%; margin-top: 15px;">Refresh Stats</button>
+                </div>
+                
+                <!-- Rules Panel -->
+                <div class="panel">
+                    <h2>📚 Learned Rules</h2>
+                    <div class="rules-list" id="rulesList">
+                        <p style="color: #666; font-size: 0.9em;">No rules learned yet. Start teaching!</p>
+                    </div>
+                    <button onclick="loadRules()" style="width: 100%; margin-top: 10px;">Load Rules</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let reconnectInterval = null;
+        
+        // Initialize WebSocket
+        function connect() {
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${location.host}/ws`;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                updateConnectionStatus(true);
+                console.log('Connected to AI server');
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleResponse(data);
+            };
+            
+            ws.onclose = () => {
+                updateConnectionStatus(false);
+                console.log('Disconnected. Reconnecting in 3s...');
+                setTimeout(connect, 3000);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+        
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connStatus');
+            if (connected) {
+                status.className = 'connection-status connected';
+                status.textContent = 'Connected';
+            } else {
+                status.className = 'connection-status disconnected';
+                status.textContent = 'Disconnected';
+            }
+        }
+        
+        function handleResponse(data) {
+            switch(data.type) {
+                case 'chat':
+                    addMessage(data.response, 'ai', data);
+                    break;
+                case 'teach':
+                    showNotification('✅ ' + data.result.status);
+                    refreshStats();
+                    break;
+                case 'train_file':
+                    showNotification(`📚 Trained on ${data.result.lines_processed} lines`);
+                    refreshStats();
+                    break;
+                case 'generate':
+                    addMessage(data.result, 'ai', {source: 'creative'});
+                    break;
+                case 'analogy':
+                    const resultDiv = document.getElementById('analogyResult');
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = `<strong>Answer:</strong> ${data.result || 'Unknown'}`;
+                    break;
+                case 'reason':
+                    document.getElementById('factsList').innerHTML = 
+                        data.result.all_facts.map(f => `<span style="background: #e9ecef; padding: 3px 8px; border-radius: 10px; margin: 2px; display: inline-block;">${f}</span>`).join('');
+                    break;
+                case 'stats':
+                    updateStats(data.result);
+                    break;
+                case 'rules':
+                    displayRules(data.result);
+                    break;
+            }
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+            
+            addMessage(message, 'user');
+            input.value = '';
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({type: 'chat', message}));
+            } else {
+                // Fallback to HTTP
+                fetch('/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message})
+                })
+                .then(r => r.json())
+                .then(data => addMessage(data.response, 'ai', data));
+            }
+        }
+        
+        function addMessage(text, sender, meta = {}) {
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = `message ${sender}`;
+            
+            let metaHtml = '';
+            if (meta.confidence) {
+                metaHtml += `<div class="meta">Confidence: ${(meta.confidence * 100).toFixed(0)}% | Source: ${meta.source}</div>`;
+            } else if (meta.source) {
+                metaHtml += `<div class="meta">Source: ${meta.source}</div>`;
+            }
+            
+            div.innerHTML = `${escapeHtml(text)}${metaHtml}`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') sendMessage();
+        }
+        
+        function quickChat(message) {
+            document.getElementById('chatInput').value = message;
+            sendMessage();
+        }
+        
+        function teach() {
+            const q = document.getElementById('teachQ').value;
+            const a = document.getElementById('teachA').value;
+            if (!q || !a) return;
+            
+            ws.send(JSON.stringify({type: 'teach', question: q, answer: a}));
+            
+            document.getElementById('teachQ').value = '';
+            document.getElementById('teachA').value = '';
+        }
+        
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                document.getElementById('fileStatus').innerHTML = 
+                    `<p>📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)</p>`;
+                
+                ws.send(JSON.stringify({
+                    type: 'train_file',
+                    content: content,
+                    filename: file.name
+                }));
+            };
+            reader.readAsText(file);
+        }
+        
+        // Drag and drop
+        const dropZone = document.getElementById('fileDrop');
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    ws.send(JSON.stringify({
+                        type: 'train_file',
+                        content: event.target.result,
+                        filename: file.name
+                    }));
+                };
+                reader.readAsText(file);
+            }
+        });
+        
+        function generateCreative() {
+            const seed = document.getElementById('chatInput').value || 'dream';
+            ws.send(JSON.stringify({type: 'generate', seed, poem: false}));
+        }
+        
+        function solveAnalogy() {
+            const a = document.getElementById('anaA').value;
+            const b = document.getElementById('anaB').value;
+            const c = document.getElementById('anaC').value;
+            if (!a || !b || !c) return;
+            
+            ws.send(JSON.stringify({type: 'analogy', a, b, c}));
+        }
+        
+        function addFact() {
+            const fact = document.getElementById('factInput').value;
+            if (!fact) return;
+            
+            ws.send(JSON.stringify({type: 'reason', facts: [fact]}));
+            document.getElementById('factInput').value = '';
+        }
+        
+        function refreshStats() {
+            ws.send(JSON.stringify({type: 'stats'}));
+        }
+        
+        function updateStats(stats) {
+            document.getElementById('statInteractions').textContent = stats.interactions;
+            document.getElementById('statHDV').textContent = stats.hdv_symbols;
+            document.getElementById('statLCS').textContent = stats.lcs_rules;
+            document.getElementById('statFacts').textContent = stats.ps_facts;
+        }
+        
+        function loadRules() {
+            ws.send(JSON.stringify({type: 'rules'}));
+        }
+        
+        function displayRules(rules) {
+            const container = document.getElementById('rulesList');
+            if (rules.length === 0) {
+                container.innerHTML = '<p style="color: #666;">No rules learned yet.</p>';
+                return;
+            }
+            
+            container.innerHTML = rules.slice(0, 20).map(r => 
+                `<div class="rule-item">
+                    <strong>IF</strong> "${r.if}"<br>
+                    <strong>THEN</strong> "${r.then}"<br>
+                    <small>Fitness: ${r.f.toFixed(2)} | Uses: ${r.uses}</small>
+                </div>`
+            ).join('');
+        }
+        
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        function showNotification(msg) {
+            const div = document.createElement('div');
+            div.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                background: #28a745;
+                color: white;
+                padding: 15px 25px;
+                border-radius: 10px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+                animation: slideIn 0.3s;
+                z-index: 1000;
+            `;
+            div.textContent = msg;
+            document.body.appendChild(div);
+            
+            setTimeout(() => div.remove(), 3000);
+        }
+        
+        // Initialize
+        connect();
+        refreshStats();
+        
+        // Auto-refresh stats every 10 seconds
+        setInterval(refreshStats, 10000);
+    </script>
+</body>
+</html>
