@@ -1,4 +1,5 @@
 import base64
+import difflib
 import json
 import os
 import random
@@ -515,6 +516,8 @@ class SymbolicAI:
         self.meta_w = {"hdv": 0.35, "lcs": 0.25, "ca": 0.1, "nlp": 0.2, "ps": 0.1}
         self.interactions = 0
         self.conversation_history: List[Dict] = []
+        self.pending_q: Optional[str] = None      # question Bo is waiting to be taught
+        self.last_exchange: Optional[Tuple[str, str]] = None
 
         self.db = sqlite3.connect(db_path or os.environ.get("BO_DB_PATH", ":memory:"),
                                   check_same_thread=False)
@@ -585,8 +588,30 @@ class SymbolicAI:
         self.db.commit()
         return True
 
+    _CONTRACT = {"whats": "what is", "whos": "who is", "hows": "how is", "wheres": "where is",
+                 "im": "i am", "thats": "that is"}
+    _S_AFTER = {"what", "who", "where", "how", "when", "why", "that", "there", "it", "he", "she"}
+
     def _normalize(self, text: str) -> str:
-        return " ".join(t for t in self.nlp.tokenize(text) if _is_word(t))
+        """Lowercase, drop punctuation, expand contractions (what's -> what is)."""
+        toks = self.nlp.tokenize(text)
+        out: List[str] = []
+        for i, t in enumerate(toks):
+            if not _is_word(t):
+                continue
+            prev = out[-1] if out else None
+            after_apos = i >= 1 and toks[i - 1] == "'"
+            if t in self._CONTRACT:
+                out.extend(self._CONTRACT[t].split())
+            elif after_apos and t == "s" and prev in self._S_AFTER:
+                out.append("is")
+            elif after_apos and t == "m" and prev == "i":
+                out.append("am")
+            elif after_apos and t == "re":
+                out.append("are")
+            else:
+                out.append(t)
+        return " ".join(out)
 
     def _init_defaults(self):
         greetings = [
@@ -633,6 +658,41 @@ class SymbolicAI:
             (norm_question,)).fetchone()
         return row[0] if row else None
 
+    @staticmethod
+    def _typo_match(a: str, b: str) -> bool:
+        """True if b is a with small typos only. Different key words (mars vs usa) fail."""
+        ta, tb = a.split(), b.split()
+        if len(ta) != len(tb):
+            return difflib.SequenceMatcher(None, a, b).ratio() >= 0.95
+        return all(x == y or difflib.SequenceMatcher(None, x, y).ratio() >= 0.75
+                   for x, y in zip(ta, tb)) and difflib.SequenceMatcher(None, a, b).ratio() >= 0.8
+
+    def _fuzzy_answer(self, norm_question: str) -> Optional[Tuple[str, float]]:
+        """Match questions that differ only by typos."""
+        rows = self.db.execute(
+            "SELECT question, content FROM knowledge WHERE question IS NOT NULL").fetchall()
+        best, best_ratio = None, 0.0
+        for q, content in rows:
+            if self._typo_match(norm_question, q):
+                ratio = difflib.SequenceMatcher(None, norm_question, q).ratio()
+                if ratio > best_ratio:
+                    best, best_ratio = content, ratio
+        return (best, best_ratio) if best else None
+
+    def _dont_know(self, words: List[str], is_question: bool = True) -> str:
+        topic = next((w for w in reversed(words) if w not in self.nlp.stop_words
+                      and w not in self.nlp.QUESTION_FILLER), None)
+        about = f" about {topic}" if topic else ""
+        if is_question:
+            opts = [f"I don't know{about} yet. What should I say to that? Just tell me and I'll remember.",
+                    f"That one's new to me. What's the answer{about}? Tell me and I'll learn it.",
+                    f"I haven't learned{about} yet. Teach me by replying with the answer."]
+        else:
+            opts = ["Interesting! I'm still learning. Tell me facts like 'cats are mammals' or 'my name is Sam'.",
+                    "I'm not sure what to make of that yet. Try telling me a fact, like 'the sky is blue'.",
+                    "Got it. I learn best from simple facts, like 'Paris is a city in France'."]
+        return opts[self.interactions % len(opts)]
+
     def _search_knowledge(self, query: str, k: int = 5) -> List[Tuple[str, float]]:
         """Token-overlap search (the old version LIKE-matched the whole sentence,
         so almost nothing ever matched)."""
@@ -654,37 +714,179 @@ class SymbolicAI:
             if not cw:
                 continue
             overlap = len(words & cw) / len(words | cw)
-            scored.append((content, overlap + priority * 0.01))
+            if question and len(words & cw) < 2 and not cw <= words:
+                continue  # one shared word is not enough to claim a taught question matches
+            scored.append((content, overlap + priority * 0.001))
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored[:k]
 
     # ---------- inference ----------
-    def think(self, query: str) -> Result:
-        self.interactions += 1
-        tokens = self.nlp.tokenize(query or "")
-        words = [t for t in tokens if _is_word(t)]
-        if not words:
-            return Result("I didn't understand that.", 0.1, "error")
+    QUESTION_STARTS = {"what", "who", "where", "when", "why", "how", "which", "do", "does", "did",
+                       "is", "are", "can", "could", "will", "would", "should", "tell", "explain",
+                       "define", "give", "show", "whats", "whos", "hows"}
+    PRONOUNS = {"i", "you", "he", "she", "it", "we", "they", "this", "that", "there", "here", "what",
+                "who", "how", "why", "when", "where", "which", "bo", "me", "my", "your"}
 
+    def _is_question(self, text: str) -> bool:
+        t = text.strip().lower()
+        w = re.findall(r"[a-z']+", t)
+        return t.endswith("?") or bool(w and w[0] in self.QUESTION_STARTS)
+
+    def _store_fact(self, questions: List[str], answer: str, overwrite: bool) -> bool:
+        """Teach several phrasings of a question. Never clobbers taught/seed answers
+        unless overwrite=True (profile facts like 'my name is ...')."""
+        stored = False
+        for q in questions:
+            nq = self._normalize(q)
+            row = self.db.execute("SELECT source FROM knowledge WHERE question=? LIMIT 1", (nq,)).fetchone()
+            if row and row[0] != "chat" and not overwrite:
+                continue
+            self.teach(q, answer, source="chat")
+            stored = True
+        return stored
+
+    def _learn_from_statement(self, text: str) -> Optional[Result]:
+        """Pick facts out of ordinary sentences: 'my name is Sam', 'cats are mammals'."""
+        t = re.sub(r"^(?:remember(?: that)?|fyi|note that)[,:]?\s+", "", text.strip(), flags=re.I)
+        if not t or "?" in t or len(t) > 220 or self._is_question(t):
+            return None
+        s = t.rstrip(".! ").strip()
+        clean = lambda x: x.strip().strip(".!,;: ")
+
+        m = re.match(r"^(?:my name is|my name's|call me|i am called)\s+(.+)$", s, re.I)
+        if m and 0 < len(clean(m.group(1)).split()) <= 4:
+            n = clean(m.group(1))
+            self._store_fact(["what is my name", "who am i", "what do you call me"], f"Your name is {n}.", True)
+            return Result(f"Nice to meet you, {n}! I'll remember your name.", 1.0, "learned")
+
+        m = re.match(r"^i(?:'m| am)\s+(\d{1,3})(?:\s+years old)?$", s, re.I)
+        if m:
+            self._store_fact(["how old am i", "what is my age"], f"You are {m.group(1)} years old.", True)
+            return Result(f"Got it, you're {m.group(1)}.", 1.0, "learned")
+
+        m = re.match(r"^i (?:live|stay) in\s+(.+)$", s, re.I)
+        if m:
+            p = clean(m.group(1))
+            self._store_fact(["where do i live", "where am i"], f"You live in {p}.", True)
+            return Result(f"Nice, I'll remember you live in {p}.", 1.0, "learned")
+
+        m = re.match(r"^i(?:'m| am) from\s+(.+)$", s, re.I)
+        if m:
+            p = clean(m.group(1))
+            self._store_fact(["where am i from", "where do i come from"], f"You are from {p}.", True)
+            return Result(f"Got it, you're from {p}.", 1.0, "learned")
+
+        m = re.match(r"^i (?:really |truly )?(like|love|enjoy|hate)\s+(.+)$", s, re.I)
+        if m and len(m.group(2).split()) <= 6:
+            verb, thing = m.group(1).lower(), clean(m.group(2))
+            verbs = ["like", "love", "enjoy"] if verb != "hate" else ["hate"]
+            self._store_fact([f"do i {v} {thing}" for v in verbs], f"Yes, you {verb} {thing}.", True)
+            return Result(f"Noted, you {verb} {thing}.", 1.0, "learned")
+
+        m = re.match(r"^(?:the |a |an )?(.+?) means (.+)$", s, re.I)
+        if m and len(m.group(1).split()) <= 4 and m.group(1).split()[0].lower() not in self.PRONOUNS:
+            subj, y = clean(m.group(1)), clean(m.group(2))
+            ok = self._store_fact([f"what does {subj} mean", f"what is {subj}"], f"{subj.capitalize()} means {y}.", False)
+            return self._fact_reply(ok, f"{subj.capitalize()} means {y}", subj)
+
+        m = re.match(r"^(?:the |a |an )?(.+?) (?:was |were )?(created|made|invented|founded|written|built|discovered) by (.+)$", s, re.I)
+        if m and len(m.group(1).split()) <= 5 and m.group(1).split()[0].lower() not in self.PRONOUNS:
+            subj, verb, y = clean(m.group(1)), m.group(2).lower(), clean(m.group(3))
+            qs = list(dict.fromkeys([f"who {verb} {subj}", f"who made {subj}", f"who created {subj}"]))
+            ok = self._store_fact(qs, f"{subj.capitalize()} was {verb} by {y}.", False)
+            return self._fact_reply(ok, f"{subj.capitalize()} was {verb} by {y}", subj)
+
+        m = re.match(r"^(?:the |a |an )?(.+?) (is|are) (.+)$", s, re.I)
+        if m:
+            subj, be, y = clean(m.group(1)), m.group(2).lower(), clean(m.group(3))
+            sw = subj.split()
+            if 0 < len(sw) <= 4 and sw[0].lower() not in self.PRONOUNS and len(y.split()) <= 25:
+                qs = [f"what {be} {subj}", f"tell me about {subj}"] + ([f"who is {subj}"] if be == "is" else [])
+                ok = self._store_fact(qs, f"{subj.capitalize()} {be} {y}.", False)
+                return self._fact_reply(ok, f"{subj.capitalize()} {be} {y}", subj)
+        return None
+
+    def _fact_reply(self, stored: bool, fact: str, subj: str) -> Result:
+        if stored:
+            return Result(f"Got it: {fact}. I'll remember that.", 1.0, "learned")
+        return Result(f"Interesting! I already have an answer about {subj}. To change it, type: what is {subj} => your answer",
+                      0.6, "learned")
+
+    def _try_correction(self, text: str) -> Optional[Result]:
+        s = text.strip()
+        if not self.last_exchange:
+            return None
+        if re.match(r"^(?:no|nope|wrong|incorrect|that'?s wrong|that is wrong)[.!]*$", s, re.I):
+            self.pending_q = self.last_exchange[0]
+            return Result("Oops. What should I have said?", 0.5, "asking")
+        m = re.match(r"^(?:no|nope|wrong|incorrect|that'?s wrong|that is wrong|not quite)[,.!:;\s]+"
+                     r"(?:it(?:'s| is)|the answer is|you should say|you should have said|say|actually)?\s*(.+)$", s, re.I)
+        if m and not self._is_question(m.group(1)):
+            ans = m.group(1).strip()
+            self.teach(self.last_exchange[0], ans, source="chat")
+            return Result("Thanks for correcting me. I'll answer that differently next time.", 1.0, "learned")
+        return None
+
+    def think(self, query: str) -> Result:
+        res = self._think(query or "")
+        if res.source not in ("error", "taught", "learned", "asking"):
+            self.last_exchange = (query, res.text)
+        return res
+
+    def _think(self, query: str) -> Result:
+        self.interactions += 1
+        tokens = self.nlp.tokenize(query)
+        if not any(_is_word(t) for t in tokens):
+            return Result("I didn't understand that.", 0.1, "error")
         self.nlp.update_stats(tokens)
 
-        norm = " ".join(words)
-        exact = self._exact_answer(norm)
-        if exact:
-            self._learn(query, exact, words)
-            return Result(exact, 0.95, "memory", {"match": "exact"})
+        # "question => answer" typed in chat teaches Bo directly
+        if "=>" in query:
+            q, a = query.split("=>", 1)
+            if q.strip() and a.strip():
+                self.pending_q = None
+                self.teach(q.strip(), a.strip())
+                return Result("Got it, I'll remember that.", 1.0, "taught")
+
+        norm = self._normalize(query)
+        words = norm.split()
+
+        corr = self._try_correction(query)
+        if corr:
+            return corr
+
+        known = self._exact_answer(norm)
+        match = "exact"
+        if not known:
+            fz = self._fuzzy_answer(norm)
+            if fz:
+                known, match = fz[0], "similar"
+
+        # natural learning: facts hidden in ordinary sentences
+        if not known:
+            learned = self._learn_from_statement(query)
+            if learned:
+                self.pending_q = None
+                return learned
+
+        # Bo asked "what should I say?" last turn: treat this reply as the answer
+        if self.pending_q and not known and not self._is_question(query):
+            q, self.pending_q = self.pending_q, None
+            self.teach(q, query.strip(), source="chat")
+            return Result(f"Thanks! Next time someone asks that, I'll say: {query.strip()}", 1.0, "learned")
+        self.pending_q = None
+
+        if known:
+            self._learn(query, known, words)
+            return Result(known, 0.95 if match == "exact" else 0.9, "memory", {"match": match})
 
         candidates: Dict[str, float] = {}
-
         for text, score in self._search_knowledge(query):
             candidates[text] = candidates.get(text, 0) + score
-
         ps_result = self._try_production_system(words)
         if ps_result:
             candidates[ps_result] = candidates.get(ps_result, 0) + 0.8
 
-        # Subsystems predict the FIRST WORD of a good reply (that's what _learn
-        # trains them on), so use them to vote between full-sentence candidates.
         votes: Dict[str, float] = defaultdict(float)
         for tok, conf in self.hdv.predict(words, k=3):
             votes[tok] += conf * self.meta_w["hdv"]
@@ -698,9 +900,10 @@ class SymbolicAI:
                 candidates[text] += votes.get(first, 0)
 
         best = max(candidates.items(), key=lambda x: x[1]) if candidates else None
-        if best is None or best[1] < 0.15:
-            creative = self.creative.generate(words[:3])
-            return Result(creative, 0.3, "creative", {"fallback": True})
+        if best is None or best[1] < 0.3:
+            if self._is_question(query):
+                self.pending_q = query.strip()
+            return Result(self._dont_know(words, self._is_question(query)), 0.1, "unknown", {"fallback": True})
 
         self._learn(query, best[0], words)
         return Result(best[0], min(best[1], 1.0), "ensemble",
