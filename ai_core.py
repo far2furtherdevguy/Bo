@@ -538,6 +538,36 @@ class SymbolicAI:
             )""")
         self.db.commit()
         self._init_defaults()
+        self._load_seed_db(os.environ.get("BO_SEED_DB") or
+                           os.path.join(os.path.dirname(os.path.abspath(__file__)), "knowledge.db"))
+
+    def _load_seed_db(self, path: str) -> int:
+        """Load a bundled SQLite file (table `knowledge` with question/content columns)
+        and train every subsystem on it. Missing or bad files are skipped, never fatal."""
+        if not os.path.isfile(path):
+            return 0
+        count = 0
+        try:
+            src = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            cols = {r[1] for r in src.execute("PRAGMA table_info(knowledge)")}
+            if "content" not in cols:
+                src.close()
+                return 0
+            q_col = "question" if "question" in cols else "NULL"
+            t_col = "topic" if "topic" in cols else "NULL"
+            for question, topic, content in src.execute(
+                    f"SELECT {q_col}, {t_col}, content FROM knowledge"):
+                if not content:
+                    continue
+                if question:
+                    self.teach(question, content, source="seed")
+                else:
+                    self.add_knowledge(topic or "general", content, priority=6, source="seed")
+                count += 1
+            src.close()
+        except sqlite3.Error:
+            return count
+        return count
 
     # ---------- knowledge base ----------
     def add_knowledge(self, topic: str, content: str, priority: int = 5,
@@ -741,10 +771,18 @@ class SymbolicAI:
     def train_from_text(self, text: str, source="file") -> Dict:
         lines = (text or "").split('\n')
         trained = 0
+        taught = 0
         for line in lines:
             line = line.strip()
             if not line or line.startswith('#'):
                 continue
+            # "question => answer" lines are taught as Q&A pairs
+            if '=>' in line:
+                q, a = line.split('=>', 1)
+                if q.strip() and a.strip():
+                    if self.teach(q.strip(), a.strip(), source="file").get("status") == "Learned!":
+                        taught += 1
+                    continue
             tokens = [t for t in self.nlp.tokenize(line) if _is_word(t)]
             if len(tokens) >= 3:
                 self.nlp.update_stats(tokens)
@@ -753,7 +791,8 @@ class SymbolicAI:
                 trained += 1
         if source.lower().endswith('.rb') or 'ruby' in source.lower():
             self._learn_ruby_patterns(text)
-        return {"lines_processed": len(lines), "patterns_learned": trained, "source": source}
+        return {"lines_processed": len(lines), "qa_taught": taught,
+                "patterns_learned": trained, "source": source}
 
     def _learn_ruby_patterns(self, code: str):
         ruby_patterns = [
