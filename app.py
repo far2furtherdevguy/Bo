@@ -1,178 +1,161 @@
-import asyncio
 import json
-import os
 import logging
-from aiohttp import web
-import aiohttp_cors
+import os
+
+from aiohttp import web, WSMsgType
+
 from ai_core import SymbolicAI
 
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize AI
-ai = SymbolicAI()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+INDEX_FILE = os.path.join(STATIC_DIR, "index.html")
 
-# Connected clients
+ai = SymbolicAI()
 clients = set()
 
-async def websocket_handler(request):
-    """Handle WebSocket connections"""
-    ws = web.WebSocketResponse()
-    await ws.prepare(request)
-    
-    clients.add(ws)
-    logger.info(f"Client connected. Total: {len(clients)}")
-    
-    try:
-        async for msg in ws:
-            if msg.type == web.WSMsgType.TEXT:
-                try:
-                    data = json.loads(msg.data)
-                    response = await process_message(data)
-                    await ws.send_json(response)
-                except json.JSONDecodeError:
-                    await ws.send_json({
-                        "type": "error",
-                        "message": "Invalid JSON"
-                    })
-            elif msg.type == web.WSMsgType.ERROR:
-                logger.error(f'WebSocket error: {ws.exception()}')
-    finally:
-        clients.discard(ws)
-        logger.info(f"Client disconnected. Total: {len(clients)}")
-    
-    return ws
 
-async def process_message(data):
-    """Process incoming messages"""
+def process_message(data):
+    """Process one incoming message (dict) and return a dict reply."""
     msg_type = data.get("type", "chat")
-    
+
     if msg_type == "chat":
-        query = data.get("message", "")
-        result = ai.think(query)
-        return {
-            "type": "chat",
-            "response": result.text,
-            "confidence": result.conf,
-            "source": result.source,
-            "meta": result.meta or {}
-        }
-    
-    elif msg_type == "teach":
-        question = data.get("question", "")
-        answer = data.get("answer", "")
-        result = ai.teach(question, answer)
-        return {"type": "teach", "result": result}
-    
-    elif msg_type == "train_file":
-        content = data.get("content", "")
-        filename = data.get("filename", "unknown")
-        result = ai.train_from_text(content, source=filename)
-        return {"type": "train_file", "result": result}
-    
-    elif msg_type == "generate":
-        seed = data.get("seed", "")
-        poem = data.get("poem", False)
-        result = ai.generate_creative(seed, poem)
-        return {"type": "generate", "result": result}
-    
-    elif msg_type == "analogy":
-        a = data.get("a", "")
-        b = data.get("b", "")
-        c = data.get("c", "")
-        result = ai.solve_analogy(a, b, c)
-        return {"type": "analogy", "result": result}
-    
-    elif msg_type == "reason":
+        result = ai.think(str(data.get("message", "")))
+        return {"type": "chat", "response": result.text, "confidence": result.conf,
+                "source": result.source, "meta": result.meta or {}}
+    if msg_type == "teach":
+        return {"type": "teach",
+                "result": ai.teach(str(data.get("question", "")), str(data.get("answer", "")))}
+    if msg_type == "train_file":
+        return {"type": "train_file",
+                "result": ai.train_from_text(str(data.get("content", "")),
+                                             source=str(data.get("filename", "unknown")))}
+    if msg_type == "generate":
+        return {"type": "generate",
+                "result": ai.generate_creative(str(data.get("seed", "")), bool(data.get("poem", False)))}
+    if msg_type == "analogy":
+        return {"type": "analogy",
+                "result": ai.solve_analogy(str(data.get("a", "")), str(data.get("b", "")),
+                                           str(data.get("c", "")))}
+    if msg_type == "reason":
         facts = data.get("facts", [])
-        result = ai.reason(facts)
-        return {
-            "type": "reason",
-            "result": result,
-            "all_facts": ai.get_facts()
-        }
-    
-    elif msg_type == "stats":
+        if not isinstance(facts, list):
+            facts = [str(facts)]
+        return {"type": "reason", "result": ai.reason([str(f) for f in facts]),
+                "all_facts": ai.get_facts()}
+    if msg_type == "stats":
         return {"type": "stats", "result": ai.get_stats()}
-    
-    elif msg_type == "rules":
+    if msg_type == "rules":
         return {"type": "rules", "result": ai.get_rules()}
-    
-    else:
-        return {"type": "error", "message": f"Unknown type: {msg_type}"}
+    return {"type": "error", "message": f"Unknown type: {msg_type}"}
 
-# HTTP handlers
-async def index_handler(request):
-    """Serve the HTML interface"""
-    return web.FileResponse('./static/index.html')
-
-async def stats_handler(request):
-    """REST API for stats"""
-    return web.json_response(ai.get_stats())
-
-async def chat_handler(request):
-    """REST API for chat"""
-    try:
-        data = await request.json()
-        query = data.get("message", "")
-        result = ai.think(query)
-        return web.json_response({
-            "response": result.text,
-            "confidence": result.conf,
-            "source": result.source
-        })
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
-
-async def train_handler(request):
-    """REST API for training"""
-    try:
-        data = await request.json()
-        
-        if "file" in data:
-            content = data["file"]
-            filename = data.get("filename", "upload")
-            result = ai.train_from_text(content, source=filename)
-        else:
-            question = data.get("question", "")
-            answer = data.get("answer", "")
-            result = ai.teach(question, answer)
-        
-        return web.json_response(result)
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
 
 async def ws_route(request):
-    """WebSocket route handler"""
-    return await websocket_handler(request)
+    # heartbeat keeps Render's proxy from dropping idle sockets
+    ws = web.WebSocketResponse(heartbeat=25, max_msg_size=8 * 1024 * 1024)
+    await ws.prepare(request)
+    clients.add(ws)
+    logger.info("Client connected. Total: %d", len(clients))
+    try:
+        async for msg in ws:
+            if msg.type == WSMsgType.TEXT:
+                try:
+                    data = json.loads(msg.data)
+                    if not isinstance(data, dict):
+                        raise ValueError("expected a JSON object")
+                except ValueError:
+                    await ws.send_json({"type": "error", "message": "Invalid JSON"})
+                    continue
+                try:
+                    await ws.send_json(process_message(data))
+                except Exception as e:  # one bad message must not kill the socket
+                    logger.exception("Error processing message")
+                    await ws.send_json({"type": "error", "message": str(e)})
+            elif msg.type == WSMsgType.ERROR:
+                logger.error("WebSocket error: %s", ws.exception())
+    finally:
+        clients.discard(ws)
+        logger.info("Client disconnected. Total: %d", len(clients))
+    return ws
 
-# Create app
-app = web.Application()
 
-# CORS
-cors = aiohttp_cors.setup(app, defaults={
-    "*": aiohttp_cors.ResourceOptions(
-        allow_credentials=True,
-        expose_headers="*",
-        allow_headers="*",
-        allow_methods="*"
-    )
-})
+async def index_handler(request):
+    if not os.path.exists(INDEX_FILE):
+        return web.Response(text="static/index.html not found", status=404)
+    return web.FileResponse(INDEX_FILE)
 
-# Routes
-app.router.add_get('/', index_handler)
-app.router.add_get('/stats', stats_handler)
-app.router.add_post('/chat', chat_handler)
-app.router.add_post('/train', train_handler)
-app.router.add_get('/ws', ws_route)  # WebSocket endpoint
-app.router.add_static('/static/', path='./static', name='static')
 
-# Apply CORS to all routes
-for route in list(app.router.routes()):
-    cors.add(route)
+async def health_handler(request):
+    return web.json_response({"status": "ok"})
+
+
+async def stats_handler(request):
+    return web.json_response(ai.get_stats())
+
+
+async def read_json(request):
+    try:
+        data = await request.json()
+    except Exception:
+        raise web.HTTPBadRequest(text=json.dumps({"error": "Invalid JSON"}),
+                                 content_type="application/json")
+    if not isinstance(data, dict):
+        raise web.HTTPBadRequest(text=json.dumps({"error": "Expected a JSON object"}),
+                                 content_type="application/json")
+    return data
+
+
+async def chat_handler(request):
+    data = await read_json(request)
+    try:
+        result = ai.think(str(data.get("message", "")))
+        return web.json_response({"response": result.text, "confidence": result.conf,
+                                  "source": result.source})
+    except Exception as e:
+        logger.exception("chat failed")
+        return web.json_response({"error": str(e)}, status=500)
+
+
+async def train_handler(request):
+    data = await read_json(request)
+    try:
+        if "file" in data:
+            result = ai.train_from_text(str(data["file"]), source=str(data.get("filename", "upload")))
+        else:
+            result = ai.teach(str(data.get("question", "")), str(data.get("answer", "")))
+        return web.json_response(result)
+    except Exception as e:
+        logger.exception("train failed")
+        return web.json_response({"error": str(e)}, status=500)
+
+
+# ---- CORS (replaces aiohttp-cors; its per-route loop is fragile with static/ws routes) ----
+async def options_handler(request):
+    return web.Response(status=204)
+
+
+async def add_cors_headers(request, response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+
+
+app = web.Application(client_max_size=8 * 1024 * 1024)
+app.on_response_prepare.append(add_cors_headers)
+
+app.router.add_get("/", index_handler)
+app.router.add_get("/health", health_handler)
+app.router.add_get("/stats", stats_handler)
+app.router.add_post("/chat", chat_handler)
+app.router.add_post("/train", train_handler)
+app.router.add_get("/ws", ws_route)
+if os.path.isdir(STATIC_DIR):
+    app.router.add_static("/static/", path=STATIC_DIR, name="static")
+app.router.add_route("OPTIONS", "/{tail:.*}", options_handler)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    logger.info(f"Starting server on port {port}")
+    logger.info("Starting server on port %d", port)
     web.run_app(app, host="0.0.0.0", port=port)
